@@ -13,6 +13,7 @@ import { useLenis } from './hooks/useLenis';
 import { initialPets } from './data/initialPets';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
+import { supabase } from './context/supabaseClient';
 
 function AppContent() {
   // Activate Lenis smooth scrolling globally
@@ -59,10 +60,57 @@ function AppContent() {
   // State for quiz matching scores map
   const [quizScores, setQuizScores] = useState(null);
 
-  // Sync state to local storage when changed
+  // Sync state to local storage when changed (local backup support)
   useEffect(() => {
     localStorage.setItem('pethaven_pets', JSON.stringify(pets));
   }, [pets]);
+
+  // ON MOUNT: Fetch real-time pets from Supabase if active
+  useEffect(() => {
+    if (!supabase) return;
+
+    const fetchPets = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('pets')
+          .select('*')
+          .order('date_added', { ascending: false });
+
+        if (!error && data) {
+          const camelPets = data.map((p) => ({
+            id: p.id,
+            name: p.name,
+            species: p.species,
+            breed: p.breed,
+            age: p.age,
+            gender: p.gender,
+            size: p.size,
+            location: p.location,
+            description: p.description,
+            vaccinated: p.vaccinated,
+            neutered: p.neutered,
+            goodWithKids: p.good_with_kids,
+            houseTrained: p.house_trained,
+            ownerName: p.owner_name,
+            ownerPhone: p.owner_phone,
+            ownerEmail: p.owner_email,
+            ownerId: p.owner_id,
+            image: p.image,
+            images: p.images,
+            dateAdded: p.date_added,
+            supplies: p.supplies,
+            compatibilityTags: p.compatibility_tags,
+            status: p.status
+          }));
+          setPets(camelPets);
+        }
+      } catch (err) {
+        console.error('Failed to sync pets list with Supabase', err);
+      }
+    };
+
+    fetchPets();
+  }, []);
 
   // Listen for auto-moderator auto-deletion events from AuthContext
   useEffect(() => {
@@ -80,24 +128,82 @@ function AppContent() {
   }, [selectedPet]);
 
   // Handle adding a new pet announcement (placed in local listings list)
-  const handlePetAdded = (newPet) => {
+  const handlePetAdded = async (newPet) => {
+    if (supabase) {
+      try {
+        const dbPet = {
+          id: newPet.id,
+          name: newPet.name,
+          species: newPet.species,
+          breed: newPet.breed,
+          age: newPet.age,
+          gender: newPet.gender,
+          size: newPet.size,
+          location: newPet.location,
+          description: newPet.description,
+          vaccinated: newPet.vaccinated,
+          neutered: newPet.neutered,
+          good_with_kids: newPet.goodWithKids,
+          house_trained: newPet.houseTrained,
+          owner_name: newPet.ownerName,
+          owner_phone: newPet.ownerPhone,
+          owner_email: newPet.ownerEmail,
+          owner_id: newPet.ownerId,
+          image: newPet.image,
+          images: newPet.images,
+          date_added: newPet.dateAdded,
+          supplies: newPet.supplies,
+          compatibility_tags: newPet.compatibilityTags,
+          status: newPet.status
+        };
+        await supabase.from('pets').insert([dbPet]);
+      } catch (err) {
+        console.error('Failed to upload pet to Supabase', err);
+      }
+    }
     setPets((prev) => [newPet, ...prev]);
   };
 
   // Moderator operations
-  const handleApprovePet = (petId) => {
+  const handleApprovePet = async (petId) => {
+    if (supabase) {
+      try {
+        await supabase
+          .from('pets')
+          .update({ status: 'approved' })
+          .eq('id', petId);
+      } catch (err) {
+        console.error('Failed to update pet status in Supabase', err);
+      }
+    }
     setPets((prev) =>
       prev.map((pet) => (pet.id === petId ? { ...pet, status: 'approved' } : pet))
     );
   };
 
-  const handleRejectPet = (petId) => {
+  const handleRejectPet = async (petId) => {
+    if (supabase) {
+      try {
+        await supabase.from('pets').delete().eq('id', petId);
+      } catch (err) {
+        console.error('Failed to delete pet from Supabase', err);
+      }
+    }
     setPets((prev) => prev.filter((pet) => pet.id !== petId));
   };
 
-  const handleRemovePet = (petId) => {
+  const handleRemovePet = async (petId) => {
     const petToRemove = pets.find((p) => p.id === petId);
     const petName = petToRemove ? petToRemove.name : 'Unknown Pet';
+    
+    if (supabase) {
+      try {
+        await supabase.from('pets').delete().eq('id', petId);
+      } catch (err) {
+        console.error('Failed to delete pet from Supabase', err);
+      }
+    }
+
     setPets((prev) => prev.filter((pet) => pet.id !== petId));
     if (selectedPet && selectedPet.id === petId) {
       setSelectedPet(null);
