@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function ContactForm({ pet, onSubmitSuccess }) {
-  const { sendAdoptMessage } = useAuth();
+  const { user, sendAdoptMessage } = useAuth();
   const { language, t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -22,8 +22,8 @@ export default function ContactForm({ pet, onSubmitSuccess }) {
   };
 
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
+    name: user ? user.name : '',
+    email: user ? user.email : '',
     phone: '',
     message: '',
   });
@@ -37,6 +37,17 @@ export default function ContactForm({ pet, onSubmitSuccess }) {
       return prev;
     });
   }, [language, pet.name]);
+
+  // Sync profile details if user changes
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        name: prev.name || user.name || '',
+        email: user.email || '',
+      }));
+    }
+  }, [user]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -200,8 +211,10 @@ export default function ContactForm({ pet, onSubmitSuccess }) {
                   placeholder={language === 'fr' ? 'ex: adoptant@gmail.com' : 'e.g. adopter@gmail.com'}
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full ltr:pl-9 ltr:pr-3 rtl:pr-9 rtl:pl-3 py-2 bg-white rounded-xl text-xs outline-none border focus:border-secondary transition-all border-transparent text-start font-medium"
-                  disabled={loading}
+                  className={`w-full ltr:pl-9 ltr:pr-3 rtl:pr-9 rtl:pl-3 py-2 bg-white rounded-xl text-xs outline-none border focus:border-secondary transition-all border-transparent text-start font-medium ${
+                    user ? 'bg-cream-accent/50 cursor-not-allowed opacity-80' : ''
+                  }`}
+                  disabled={loading || !!user}
                 />
               </div>
               {errors.email && <span className="text-[9px] font-bold text-red-300 text-start">{errors.email}</span>}

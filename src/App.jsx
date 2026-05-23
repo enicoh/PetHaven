@@ -164,7 +164,7 @@ function AppContent() {
 
         {/* Form Creation Stepper Section */}
         <div className="py-10">
-          <ListForm onPetAdded={handlePetAdded} />
+          <ListForm key={user ? user.id : 'guest'} onPetAdded={handlePetAdded} />
         </div>
 
         {/* 2. Success Stories Gallery (Deactivated for launch - uncomment to reactivate)

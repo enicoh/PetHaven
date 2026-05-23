@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { PawPrint, MapPin, User, Phone, Mail, ArrowLeft, ArrowRight, Check, Image as ImageIcon, Lock, ShieldAlert } from 'lucide-react';
+import { PawPrint, MapPin, User, Phone, Mail, ArrowLeft, ArrowRight, Check, Image as ImageIcon, Lock, ShieldAlert, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import gsap from 'gsap';
@@ -28,8 +28,7 @@ export default function ListForm({ onPetAdded }) {
     ownerName: user ? user.name : '',
     ownerPhone: '',
     ownerEmail: user ? user.email : '',
-    imageFile: null,
-    imagePreview: '',
+    imagesList: [],
     suppliesList: [], // holds selected free starter supplies
   });
 
@@ -37,6 +36,51 @@ export default function ListForm({ onPetAdded }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      const remainingSlots = 6 - formData.imagesList.length;
+      const filesToAdd = files.slice(0, remainingSlots);
+      
+      const newImages = filesToAdd.map((file) => ({
+        file,
+        preview: URL.createObjectURL(file)
+      }));
+
+      setFormData((prev) => ({
+        ...prev,
+        imagesList: [...prev.imagesList, ...newImages].slice(0, 6)
+      }));
+
+      if (errors.image) {
+        setErrors((prev) => ({ ...prev, image: null }));
+      }
+    }
+  };
 
   // Auto-sync owner info if user changes
   React.useEffect(() => {
@@ -73,16 +117,23 @@ export default function ListForm({ onPetAdded }) {
     });
   };
 
-  // Handle dynamic local image upload
+  // Handle dynamic local image upload (Max 6)
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const objectUrl = URL.createObjectURL(file);
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      const remainingSlots = 6 - formData.imagesList.length;
+      const filesToAdd = files.slice(0, remainingSlots);
+      
+      const newImages = filesToAdd.map((file) => ({
+        file,
+        preview: URL.createObjectURL(file)
+      }));
+
       setFormData((prev) => ({
         ...prev,
-        imageFile: file,
-        imagePreview: objectUrl,
+        imagesList: [...prev.imagesList, ...newImages].slice(0, 6)
       }));
+
       if (errors.image) {
         setErrors((prev) => ({ ...prev, image: null }));
       }
@@ -97,14 +148,24 @@ export default function ListForm({ onPetAdded }) {
       '/assets/white_bunny.png',
       '/assets/parakeet_bird.png',
     ];
+    
+    if (formData.imagesList.length >= 6) return;
+
     setFormData((prev) => ({
       ...prev,
-      imageFile: null,
-      imagePreview: placeholders[num],
+      imagesList: [...prev.imagesList, { file: null, preview: placeholders[num] }].slice(0, 6)
     }));
+
     if (errors.image) {
       setErrors((prev) => ({ ...prev, image: null }));
     }
+  };
+
+  const handleRemoveImage = (indexToRemove) => {
+    setFormData((prev) => ({
+      ...prev,
+      imagesList: prev.imagesList.filter((_, idx) => idx !== indexToRemove)
+    }));
   };
 
   const getValidationError = (field, type) => {
@@ -160,7 +221,7 @@ export default function ListForm({ onPetAdded }) {
       } else if (!/\S+@\S+\.\S+/.test(formData.ownerEmail)) {
         newErrors.ownerEmail = getValidationError('ownerEmail', 'invalid');
       }
-      if (!formData.imagePreview) newErrors.image = getValidationError('image');
+      if (formData.imagesList.length === 0) newErrors.image = getValidationError('image');
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -267,7 +328,8 @@ export default function ListForm({ onPetAdded }) {
       ownerPhone: formData.ownerPhone,
       ownerEmail: formData.ownerEmail,
       ownerId: user ? user.id : 'user-admin',
-      image: formData.imagePreview || 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=500',
+      image: formData.imagesList.length > 0 ? formData.imagesList[0].preview : 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=500',
+      images: formData.imagesList.length > 0 ? formData.imagesList.map((img) => img.preview) : ['https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=500'],
       dateAdded: new Date().toISOString(),
       supplies: formData.suppliesList,
       compatibilityTags: compTags,
@@ -320,8 +382,7 @@ export default function ListForm({ onPetAdded }) {
       ownerName: user ? user.name : '',
       ownerPhone: '',
       ownerEmail: user ? user.email : '',
-      imageFile: null,
-      imagePreview: '',
+      imagesList: [],
       suppliesList: [],
     });
     setErrors({});
@@ -734,69 +795,114 @@ export default function ListForm({ onPetAdded }) {
                     {t('form.photoLabel')} <span className="text-secondary">*</span>
                   </label>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center text-start">
+                  <div className="flex flex-col gap-4 text-start">
                     {/* Live Preview / Select Container */}
-                    <div className="h-[200px] rounded-2xl bg-cream-bg border-2 border-dashed border-primary/10 flex flex-col items-center justify-center relative overflow-hidden group select-none">
-                      {formData.imagePreview ? (
-                        <>
-                          <img
-                            src={formData.imagePreview}
-                            alt="Upload preview"
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <span className="text-white text-xs font-bold bg-primary px-3 py-1.5 rounded-lg">
-                              {language === 'fr' ? 'Changer l\'image' : language === 'ar' ? 'تغيير الصورة' : 'Change Image'}
-                            </span>
-                          </div>
-                        </>
+                    <div
+                      onDragEnter={handleDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`h-[140px] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center relative overflow-hidden group select-none cursor-pointer transition-all duration-300 ${
+                        isDraggingOver
+                          ? 'border-secondary bg-secondary/5 scale-[1.02] shadow-inner shadow-secondary/5'
+                          : 'bg-cream-bg border-primary/10 hover:bg-cream-accent/40'
+                      }`}
+                    >
+                      {isDraggingOver ? (
+                        <div className="text-center p-4 animate-pulse">
+                          <ImageIcon className="w-10 h-10 text-secondary mx-auto mb-2" />
+                          <p className="text-xs font-black text-secondary">
+                            {language === 'fr' ? 'Déposez vos photos ici ! 📸' : language === 'ar' ? 'أفلت الصور هنا الآن! 📸' : 'Drop your photos here! 📸'}
+                          </p>
+                          <p className="text-[10px] text-secondary/80 mt-1">
+                            {language === 'fr'
+                              ? `Ajout de ${6 - formData.imagesList.length} photos max`
+                              : language === 'ar'
+                              ? `إضافة ${6 - formData.imagesList.length} صور كحد أقصى`
+                              : `Adding up to ${6 - formData.imagesList.length} photos max`}
+                          </p>
+                        </div>
                       ) : (
                         <div className="text-center p-4">
-                          <ImageIcon className="w-10 h-10 text-primary/20 mx-auto mb-2" />
-                          <p className="text-xs font-bold text-primary">{t('form.photoPlaceholderTitle')}</p>
-                          <p className="text-[10px] text-primary-light/60 mt-1">{t('form.photoPlaceholderDesc')}</p>
+                          <ImageIcon className="w-8 h-8 text-primary/20 mx-auto mb-2" />
+                          <p className="text-xs font-bold text-primary">
+                            {language === 'fr' ? 'Déposer des photos (Max 6)' : language === 'ar' ? 'اسحب الصور هنا (بحد أقصى 6)' : 'Drop Photos (Max 6)'}
+                          </p>
+                          <p className="text-[10px] text-primary-light/60 mt-1">
+                            {language === 'fr' ? 'Cliquez ou glissez-déposez jusqu\'à 6 fichiers' : language === 'ar' ? 'انقر أو اسحب وأفلت ما يصل إلى 6 صور' : 'Click or drag and drop up to 6 pictures'}
+                          </p>
                         </div>
                       )}
                       <input
                         type="file"
                         accept="image/*"
+                        multiple
                         onChange={handleImageChange}
                         className="absolute inset-0 opacity-0 cursor-pointer"
                         title="Upload a file"
                       />
                     </div>
 
+                    {/* Uploaded Images Grid Preview */}
+                    {formData.imagesList.length > 0 && (
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 text-start">
+                        {formData.imagesList.map((img, idx) => (
+                          <div key={idx} className="relative h-16 w-full rounded-xl overflow-hidden bg-cream-accent border border-primary/5 group select-none">
+                            <img src={img.preview} alt={`preview-${idx}`} className="w-full h-full object-cover" />
+                            {/* Star Badge for Cover photo */}
+                            {idx === 0 && (
+                              <span className="absolute top-0.5 left-0.5 bg-secondary text-cream-bg text-[7px] font-extrabold px-1 py-0.5 rounded shadow">
+                                ⭐ {language === 'fr' ? 'Couverture' : language === 'ar' ? 'غلاف' : 'Cover'}
+                              </span>
+                            )}
+                            {/* Remove button */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(idx)}
+                              className="absolute top-0.5 right-0.5 w-4.5 h-4.5 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-all cursor-pointer shadow"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Pre-installed placeholders */}
-                    <div className="space-y-3.5 text-start">
+                    <div className="space-y-3.5 text-start pt-2">
                       <p className="text-xs font-bold text-primary-light/80 text-start">
                         {t('form.placeholderHelp')}
                       </p>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <button
                           type="button"
                           onClick={() => handleImagePlaceholder(0)}
-                          className="py-2.5 px-3 bg-cream-bg hover:bg-cream-accent rounded-xl text-xs font-semibold text-primary border border-primary/5 text-start truncate flex items-center gap-1.5 cursor-pointer"
+                          disabled={formData.imagesList.length >= 6}
+                          className="py-2.5 px-3 bg-cream-bg hover:bg-cream-accent disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs font-semibold text-primary border border-primary/5 text-start truncate flex items-center gap-1.5 cursor-pointer"
                         >
                           🐶 Bailey Golden
                         </button>
                         <button
                           type="button"
                           onClick={() => handleImagePlaceholder(1)}
-                          className="py-2.5 px-3 bg-cream-bg hover:bg-cream-accent rounded-xl text-xs font-semibold text-primary border border-primary/5 text-start truncate flex items-center gap-1.5 cursor-pointer"
+                          disabled={formData.imagesList.length >= 6}
+                          className="py-2.5 px-3 bg-cream-bg hover:bg-cream-accent disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs font-semibold text-primary border border-primary/5 text-start truncate flex items-center gap-1.5 cursor-pointer"
                         >
                           🐱 Milo Ginger
                         </button>
                         <button
                           type="button"
                           onClick={() => handleImagePlaceholder(2)}
-                          className="py-2.5 px-3 bg-cream-bg hover:bg-cream-accent rounded-xl text-xs font-semibold text-primary border border-primary/5 text-start truncate flex items-center gap-1.5 cursor-pointer"
+                          disabled={formData.imagesList.length >= 6}
+                          className="py-2.5 px-3 bg-cream-bg hover:bg-cream-accent disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs font-semibold text-primary border border-primary/5 text-start truncate flex items-center gap-1.5 cursor-pointer"
                         >
                           🐰 Cotton White
                         </button>
                         <button
                           type="button"
                           onClick={() => handleImagePlaceholder(3)}
-                          className="py-2.5 px-3 bg-cream-bg hover:bg-cream-accent rounded-xl text-xs font-semibold text-primary border border-primary/5 text-start truncate flex items-center gap-1.5 cursor-pointer"
+                          disabled={formData.imagesList.length >= 6}
+                          className="py-2.5 px-3 bg-cream-bg hover:bg-cream-accent disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs font-semibold text-primary border border-primary/5 text-start truncate flex items-center gap-1.5 cursor-pointer"
                         >
                           🐦 Sunny Cockatiel
                         </button>
@@ -857,7 +963,10 @@ export default function ListForm({ onPetAdded }) {
                         placeholder="e.g. john@example.com"
                         value={formData.ownerEmail}
                         onChange={handleChange}
-                        className={`form-input text-start font-medium text-sm ${errors.ownerEmail ? 'border-red-400' : ''}`}
+                        className={`form-input text-start font-medium text-sm ${
+                          errors.ownerEmail ? 'border-red-400' : ''
+                        } ${user ? 'bg-slate-100 cursor-not-allowed opacity-80' : ''}`}
+                        disabled={!!user}
                       />
                       {errors.ownerEmail && <span className="text-[10px] font-semibold text-red-500 text-start">{errors.ownerEmail}</span>}
                     </div>

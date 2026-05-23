@@ -17,8 +17,14 @@ export const initialPets = [
     ownerPhone: "+1 (555) 234-5678",
     ownerEmail: "sarah.c@pethaven.org",
     image: "/assets/dog_puppy.png",
+    images: [
+      "/assets/dog_puppy.png",
+      "/assets/happy_dog.png",
+      "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=500",
+      "https://images.unsplash.com/photo-1537151625747-768eb6cf92b2?w=500"
+    ],
     dateAdded: "2026-05-20T10:30:00.000Z",
-    supplies: ["Leash / Collar", "Favorite Toys", "Food Bowl"],
+    supplies: ["Leash / Collar", "Favorite Toys", "Food Bowls"],
     compatibilityTags: {
       space: "yard",
       activity: "high",
@@ -44,8 +50,14 @@ export const initialPets = [
     ownerPhone: "+1 (555) 876-5432",
     ownerEmail: "david.m@pethaven.org",
     image: "/assets/ginger_kitten.png",
+    images: [
+      "/assets/ginger_kitten.png",
+      "/assets/happy_cat.png",
+      "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500",
+      "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=500"
+    ],
     dateAdded: "2026-05-22T08:15:00.000Z",
-    supplies: ["Cat Carrier", "Scratching Post", "Litter Box"],
+    supplies: ["Carrier / Cage", "Favorite Toys", "Food Bowls"],
     compatibilityTags: {
       space: "apartment",
       activity: "medium",
@@ -71,8 +83,13 @@ export const initialPets = [
     ownerPhone: "+1 (555) 345-6789",
     ownerEmail: "elena.r@pethaven.org",
     image: "/assets/white_bunny.png",
+    images: [
+      "/assets/white_bunny.png",
+      "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=500",
+      "https://images.unsplash.com/photo-1592194996308-7b43878e84a6?w=500"
+    ],
     dateAdded: "2026-05-18T14:45:00.000Z",
-    supplies: ["Indoor Playpen", "Water Bottle", "Unopened Food"],
+    supplies: ["Carrier / Cage", "Favorite Toys", "Unopened Food"],
     compatibilityTags: {
       space: "apartment",
       activity: "low",
@@ -98,8 +115,13 @@ export const initialPets = [
     ownerPhone: "+1 (555) 901-2345",
     ownerEmail: "marcus.v@pethaven.org",
     image: "/assets/parakeet_bird.png",
+    images: [
+      "/assets/parakeet_bird.png",
+      "/assets/happy_bird.png",
+      "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=500"
+    ],
     dateAdded: "2026-05-21T11:00:00.000Z",
-    supplies: ["Travel Cage", "Bird Toys", "Millet Seeds"],
+    supplies: ["Carrier / Cage", "Favorite Toys", "Unopened Food"],
     compatibilityTags: {
       space: "apartment",
       activity: "medium",

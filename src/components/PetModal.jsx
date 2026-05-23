@@ -6,18 +6,30 @@ import ContactForm from './ContactForm';
 import gsap from 'gsap';
 
 export default function PetModal({ pet, onClose, matchScore }) {
-  const { reportListing } = useAuth();
+  const { user, reportListing } = useAuth();
   const { language, t } = useLanguage();
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState('Commercial Breeder / Selling');
   const [reportDetails, setReportDetails] = useState('');
-  const [reporterEmail, setReporterEmail] = useState('');
+  const [reporterEmail, setReporterEmail] = useState(user ? user.email : '');
   const [duplicateReportError, setDuplicateReportError] = useState(false);
   const [reportSuccess, setReportSuccess] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [activeImage, setActiveImage] = useState(pet.image);
 
   const modalOverlayRef = useRef(null);
   const modalBoxRef = useRef(null);
+
+  useEffect(() => {
+    setActiveImage(pet.image);
+  }, [pet]);
+
+  // Sync reporter email if authenticated user shifts
+  useEffect(() => {
+    if (user) {
+      setReporterEmail(user.email);
+    }
+  }, [user]);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -192,15 +204,33 @@ export default function PetModal({ pet, onClose, matchScore }) {
           <X className="w-5 h-5" />
         </button>
 
-        {/* Left column: High resolution Image - Static and fills column fully on md */}
-        <div className="w-full md:w-1/2 relative min-h-[300px] md:h-full select-none bg-cream-bg">
+        {/* Left column: High resolution Image Gallery with Thumbnail Carousel */}
+        <div className="w-full md:w-1/2 relative min-h-[350px] md:h-full select-none bg-cream-bg flex flex-col justify-end">
           <img
-            src={pet.image}
+            src={activeImage}
             alt={pet.name}
-            className="w-full h-full object-cover md:absolute md:inset-0"
+            className="w-full h-full object-cover md:absolute md:inset-0 transition-all duration-300"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent md:hidden" />
-          <span className="absolute bottom-6 ltr:left-6 rtl:right-6 bg-secondary text-cream-bg text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-lg">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
+          
+          {/* Gallery Thumbnails Overlay */}
+          {pet.images && pet.images.length > 1 && (
+            <div className="absolute bottom-16 left-0 right-0 px-6 flex justify-center gap-2 z-10 overflow-x-auto py-2 scrollbar-none select-none">
+              {pet.images.slice(0, 6).map((imgUrl, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveImage(imgUrl)}
+                  className={`w-11 h-11 rounded-xl overflow-hidden border-2 shadow-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer shrink-0 ${
+                    activeImage === imgUrl ? 'border-secondary scale-105' : 'border-white/70 hover:border-white opacity-80 hover:opacity-100'
+                  }`}
+                >
+                  <img src={imgUrl} alt={`gallery-${idx}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          <span className="absolute bottom-6 ltr:left-6 rtl:right-6 bg-secondary text-cream-bg text-[10px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-lg z-10 select-none">
             {t('modal.freeAdoption')}
           </span>
         </div>
@@ -281,9 +311,9 @@ export default function PetModal({ pet, onClose, matchScore }) {
                         placeholder={t('modal.reportEmailPlaceholder')}
                         value={reporterEmail}
                         onChange={(e) => setReporterEmail(e.target.value)}
-                        className="form-input text-xs text-start"
+                        className={`form-input text-xs text-start ${user ? 'bg-slate-100 cursor-not-allowed opacity-80' : ''}`}
                         required
-                        disabled={reporting}
+                        disabled={reporting || !!user}
                       />
                       {duplicateReportError && (
                         <span className="text-[10px] font-bold text-red-500 mt-1 block select-none">

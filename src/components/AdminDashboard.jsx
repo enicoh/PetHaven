@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function AdminDashboard({ pets, onApprovePet, onRejectPet, onRemovePet }) {
-  const { reports, logs, deleteListingReport, addLog } = useAuth();
+  const { reports, logs, deleteListingReport, addLog, setReports } = useAuth();
   const { language, t } = useLanguage();
   const [activeTab, setActiveTab] = useState('moderation');
 
@@ -12,6 +12,18 @@ export default function AdminDashboard({ pets, onApprovePet, onRejectPet, onRemo
   const approvedPets = pets.filter((p) => p.status === 'approved');
   const flaggedPets = pets.filter((p) => p.status === 'flagged');
   const activeCount = approvedPets.length;
+
+  // Group reports by unique reported pet ID
+  const reportedPetIds = Array.from(new Set(reports.map((r) => r.petId)));
+  const reportedPets = reportedPetIds.map((petId) => {
+    const pet = pets.find((p) => p.id === petId);
+    const petReports = reports.filter((r) => r.petId === petId);
+    return {
+      pet,
+      petId,
+      reports: petReports
+    };
+  }).filter((item) => item.pet !== undefined);
 
   const handleApprove = (petId, petName) => {
     onApprovePet(petId);
@@ -23,14 +35,14 @@ export default function AdminDashboard({ pets, onApprovePet, onRejectPet, onRemo
     addLog('Admin Deleted', `Admin deleted ${isFlagged ? 'flagged spam' : 'active'} listing '${petName}'.`);
   };
 
-  const handleResolveReport = (reportId, action, petId, petName) => {
+  const handleResolveAllReports = (action, petId, petName) => {
     if (action === 'delete') {
       onRemovePet(petId);
-      addLog('Admin Report Action', `Deleted reported listing '${petName}' due to policy violation.`);
+      addLog('Admin Report Action', `Deleted reported listing '${petName}' due to policy violations.`);
     } else {
-      addLog('Admin Report Action', `Dismissed abuse report on listing '${petName}'.`);
+      addLog('Admin Report Action', `Dismissed all abuse reports on listing '${petName}'.`);
     }
-    deleteListingReport(reportId);
+    setReports((prev) => prev.filter((r) => r.petId !== petId));
   };
 
   const translateReportReason = (reason) => {
@@ -147,7 +159,7 @@ export default function AdminDashboard({ pets, onApprovePet, onRejectPet, onRemo
         <div>
           {/* TAB 1: MODERATION QUEUE */}
           {activeTab === 'moderation' && (
-            <div className="space-y-4 text-start">
+            <div className="space-y-6 text-start">
               {approvedPets.length === 0 && flaggedPets.length === 0 ? (
                 <div className="text-center py-10 bg-slate-800/20 rounded-2xl border border-slate-800/50 text-center flex flex-col items-center">
                   <Check className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
@@ -155,53 +167,91 @@ export default function AdminDashboard({ pets, onApprovePet, onRejectPet, onRemo
                   <p className="text-xs text-slate-400 mt-1 text-center">{t('admin.queueEmptyDesc')}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-start">
+                <div className="space-y-6 text-start">
                   {/* Map over flagged spam first (highest priority) */}
                   {[...flaggedPets, ...approvedPets].map((pet) => {
                     const isSpam = pet.status === 'flagged';
                     return (
                       <div
                         key={pet.id}
-                        className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 transition-all bg-slate-800/20 text-start ${
-                          isSpam ? 'border-red-500/30' : 'border-slate-800'
+                        className={`p-6 rounded-[24px] border flex flex-col justify-between gap-5 transition-all bg-slate-900/40 text-start relative overflow-hidden ${
+                          isSpam ? 'border-red-500/30' : 'border-slate-800/80'
                         }`}
                       >
-                        <div className="flex gap-4 text-start">
-                          <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-900 shrink-0">
-                            <img src={pet.image} alt={pet.name} className="w-full h-full object-cover" />
-                          </div>
+                        {/* Header Details */}
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-slate-800/60 pb-4">
                           <div className="text-start">
-                            <div className="flex items-center gap-1.5 flex-wrap text-start">
-                              <span className="font-extrabold text-white text-base leading-tight text-start">{pet.name}</span>
-                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                            <h3 className="text-lg font-extrabold text-white leading-tight text-start flex items-center gap-2 flex-wrap">
+                              <span>{pet.name}</span>
+                              <span className={`text-[9px] font-bold px-2.5 py-0.5 rounded-full border tracking-wide uppercase ${
                                 isSpam ? 'bg-red-500/10 text-red-300 border-red-500/20 animate-pulse' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
                               }`}>
                                 {isSpam ? t('admin.spamBadge') : t('admin.pendingBadge')}
                               </span>
-                            </div>
+                            </h3>
                             <p className="text-xs text-slate-400 font-semibold mt-1 text-start">
                               {pet.breed} • {pet.age} • 📍{pet.location}
                             </p>
-                            <p className="text-[11px] text-slate-300 line-clamp-2 mt-2 leading-relaxed italic bg-slate-900/40 p-2 rounded-lg text-start">
-                              "{pet.description}"
-                            </p>
+                          </div>
+                        </div>
+
+                        {/* Middle Section: Complete Post & Image Gallery */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start text-start">
+                          {/* 1. Complete Images List (Left) */}
+                          <div className="lg:col-span-4 flex flex-col gap-2.5 text-start">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block text-start">
+                              📷 Uploaded Pictures ({pet.images ? pet.images.length : 1})
+                            </span>
+                            <div className="grid grid-cols-3 gap-2">
+                              {pet.images ? (
+                                pet.images.map((imgUrl, idx) => (
+                                  <div key={idx} className="h-14 rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
+                                    <img src={imgUrl} alt={`pet-img-${idx}`} className="w-full h-full object-cover" />
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="h-14 rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
+                                  <img src={pet.image} alt="pet-img" className="w-full h-full object-cover" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 2. Detailed Pet Description & Lister Info */}
+                          <div className="lg:col-span-8 space-y-4 text-start">
+                            {/* Description Callout */}
+                            <div className="text-start bg-slate-950/40 p-4 rounded-2xl border border-slate-800/80">
+                              <span className="text-[9px] font-bold text-secondary uppercase tracking-wider block mb-1 text-start">
+                                📝 Written Description
+                              </span>
+                              <p className="text-xs text-slate-300 leading-relaxed text-start">
+                                "{pet.description}"
+                              </p>
+                            </div>
+
+                            {/* Contact / Lister details */}
+                            <div className="text-[10px] text-slate-400 flex flex-wrap gap-x-4 gap-y-1 font-semibold bg-slate-900/30 p-2.5 rounded-xl border border-slate-800/50">
+                              <span>👤 Owner: {pet.ownerName}</span>
+                              <span className="select-all">📧 Contact: {pet.ownerEmail}</span>
+                              <span>📞 Phone: {pet.ownerPhone}</span>
+                            </div>
                           </div>
                         </div>
 
                         {/* Audit Alerts */}
                         {isSpam && (
-                          <div className="bg-red-950/20 text-red-400 border border-red-500/15 p-2 rounded-xl text-[10px] leading-relaxed flex items-center gap-1.5 text-start">
+                          <div className="bg-red-950/20 text-red-400 border border-red-500/15 p-3 rounded-xl text-[10px] leading-relaxed flex items-center gap-1.5 text-start">
                             <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
                             <span>{t('admin.autoFlagAlert')}</span>
                           </div>
                         )}
 
                         {/* Control buttons */}
-                        <div className="flex items-center gap-2 border-t border-slate-800 pt-3.5 mt-1 text-start">
+                        <div className="flex items-center gap-2 border-t border-slate-800/60 pt-4 mt-1 text-start">
                           {isSpam && (
                             <button
                               onClick={() => handleApprove(pet.id, pet.name)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1 cursor-pointer transition-colors"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1 cursor-pointer transition-colors shadow-md shadow-emerald-600/10"
                             >
                               <Check className="w-3.5 h-3.5" />
                               <span>{t('admin.approveBtn')}</span>
@@ -209,7 +259,7 @@ export default function AdminDashboard({ pets, onApprovePet, onRejectPet, onRemo
                           )}
                           <button
                             onClick={() => handleReject(pet.id, pet.name, isSpam)}
-                            className="bg-red-600/10 hover:bg-red-600/20 border border-red-500/20 text-red-400 font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1 cursor-pointer transition-colors ltr:ml-auto rtl:mr-auto"
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors shadow-md shadow-red-600/10 ltr:ml-auto rtl:mr-auto"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             <span>{t('admin.rejectBtn')}</span>
@@ -225,64 +275,116 @@ export default function AdminDashboard({ pets, onApprovePet, onRejectPet, onRemo
 
           {/* TAB 2: ABUSE REPORTS BOARD */}
           {activeTab === 'reports' && (
-            <div className="space-y-4 text-start">
-              {reports.length === 0 ? (
+            <div className="space-y-6 text-start">
+              {reportedPets.length === 0 ? (
                 <div className="text-center py-10 bg-slate-800/20 rounded-2xl border border-slate-800/50 text-center flex flex-col items-center">
                   <ShieldCheck className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
                   <p className="font-bold text-slate-300 text-center">{t('admin.reportsEmpty')}</p>
                   <p className="text-xs text-slate-400 mt-1 text-center">{t('admin.reportsEmptyDesc')}</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto text-start">
-                  <table className="w-full text-xs text-slate-300 border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/40 text-start">
-                    <thead className="bg-slate-800/60 uppercase font-bold text-slate-400 text-start">
-                      <tr>
-                        <th className="p-4 text-start">{t('admin.thPet')}</th>
-                        <th className="p-4 text-start">{t('admin.thCategory')}</th>
-                        <th className="p-4 text-start">{t('admin.thDetails')}</th>
-                        <th className="p-4 text-center">{t('admin.thActions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800 text-start">
-                      {reports.map((rep) => {
-                        const petReportsCount = reports.filter((r) => r.petId === rep.petId).length;
-                        return (
-                          <tr key={rep.id} className="hover:bg-slate-800/20">
-                            <td className="p-4 text-start">
-                              <span className="font-bold text-white text-sm block">{rep.petName}</span>
-                              {rep.reporterEmail && (
-                                <span className="text-[10px] text-slate-400 block mt-0.5 select-all">📧 {rep.reporterEmail}</span>
-                              )}
-                              <span className="inline-flex items-center text-[9px] font-extrabold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-md mt-1.5 select-none">
-                                📈 {petReportsCount} / 10
-                              </span>
-                            </td>
-                            <td className="p-4 text-start">
-                            <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 px-2.5 py-1 rounded-full font-bold text-start">
-                              {translateReportReason(rep.reason)}
+                <div className="space-y-6 text-start">
+                  {reportedPets.map((item) => {
+                    const { pet, petId, reports: petReports } = item;
+                    
+                    return (
+                      <div
+                        key={petId}
+                        className="p-6 rounded-[24px] border border-red-500/25 bg-slate-900/40 flex flex-col gap-5 text-start relative overflow-hidden"
+                      >
+                        {/* Header Details */}
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-slate-800/60 pb-4">
+                          <div className="text-start">
+                            <h3 className="text-lg font-extrabold text-white leading-tight text-start">
+                              🚨 {pet.name}
+                            </h3>
+                            <p className="text-xs text-slate-400 font-semibold mt-1 text-start">
+                              {pet.breed} • {pet.age} • 📍{pet.location}
+                            </p>
+                          </div>
+                          
+                          {/* Live reports threshold indicator badge */}
+                          <span className="inline-flex items-center text-xs font-black text-red-400 bg-red-500/10 border border-red-500/20 px-3.5 py-1.5 rounded-full self-start select-none">
+                            📈 {petReports.length} / 10 Reports Filed
+                          </span>
+                        </div>
+
+                        {/* Middle Section: Complete Post & Compliant Details */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start text-start">
+                          {/* 1. Complete Images List (Left) */}
+                          <div className="lg:col-span-4 flex flex-col gap-2.5 text-start">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block text-start">
+                              📷 Uploaded Pictures ({pet.images ? pet.images.length : 1})
                             </span>
-                          </td>
-                          <td className="p-4 leading-relaxed max-w-sm italic text-start">"{rep.details}"</td>
-                          <td className="p-4 text-center flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => handleResolveReport(rep.id, 'delete', rep.petId, rep.petName)}
-                              className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors cursor-pointer"
-                              title="Delete listing permanently"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleResolveReport(rep.id, 'dismiss', rep.petId, rep.petName)}
-                              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors cursor-pointer"
-                              title="Dismiss flag"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      )})}
-                    </tbody>
-                  </table>
+                            <div className="grid grid-cols-3 gap-2">
+                              {pet.images ? (
+                                pet.images.map((imgUrl, idx) => (
+                                  <div key={idx} className="h-14 rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
+                                    <img src={imgUrl} alt={`pet-img-${idx}`} className="w-full h-full object-cover" />
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="h-14 rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
+                                  <img src={pet.image} alt="pet-img" className="w-full h-full object-cover" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 2. Detailed Pet Description & User Reports */}
+                          <div className="lg:col-span-8 space-y-4 text-start">
+                            {/* Description Callout */}
+                            <div className="text-start bg-slate-950/40 p-4 rounded-2xl border border-slate-800/80">
+                              <span className="text-[9px] font-bold text-secondary uppercase tracking-wider block mb-1 text-start">
+                                📝 Written Description
+                              </span>
+                              <p className="text-xs text-slate-300 leading-relaxed text-start">
+                                "{pet.description}"
+                              </p>
+                            </div>
+
+                            {/* Reports List */}
+                            <div className="space-y-2.5 text-start">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block text-start">
+                                👥 User Complaints
+                              </span>
+                              <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                {petReports.map((rep) => (
+                                  <div key={rep.id} className="text-xs bg-slate-800/20 p-3 rounded-xl border border-slate-800 text-start">
+                                    <div className="flex flex-wrap justify-between items-center gap-2 mb-1">
+                                      <span className="text-[10px] text-slate-400 font-extrabold select-all">📧 {rep.reporterEmail}</span>
+                                      <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase select-none">
+                                        {translateReportReason(rep.reason)}
+                                      </span>
+                                    </div>
+                                    <p className="text-slate-200 italic leading-relaxed text-start">"{rep.details}"</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Deletion & Resolution Control Buttons */}
+                        <div className="flex items-center gap-2.5 border-t border-slate-800/60 pt-4 mt-1 text-start">
+                          <button
+                            onClick={() => handleResolveAllReports('delete', petId, pet.name)}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors shadow-md shadow-red-600/10"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Delete Listing permanently</span>
+                          </button>
+                          <button
+                            onClick={() => handleResolveAllReports('dismiss', petId, pet.name)}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors border border-slate-700 ltr:ml-auto rtl:mr-auto"
+                          >
+                            <X className="w-4 h-4" />
+                            <span>Dismiss All Reports</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
